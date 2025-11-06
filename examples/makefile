@@ -1,12 +1,15 @@
 CLANG = clang
 CFLAGS = -O2 -target bpf   -I/usr/include   -I/usr/include/x86_64-linux-gnu   -I/usr/include/bpf  -g
 
-SRCS = xdp_drop_all.c xdp_drop_ipv6.c xdp_count_ipv6.c xdp_count_perIP.c
+SRCS = xdp_drop_all.c xdp_drop_ipv6.c xdp_count_ipv6.c xdp_count_perIP.c loader.c
 OBJS = $(SRCS:.c=.o)
 
 
 all : $(OBJS)
 
+
+loader.o: loader.c
+	clang loader.c -o loader.o -lbpf -lxdp
 
 %.o: %.c
 	$(CLANG) $(CFLAGS) -c $< -o $@
