@@ -5,10 +5,13 @@
 #include <linux/if_ether.h>
 
 #define THRESHOLD 10
-#define TIME_PERIOD 1000000000 // 1 sec in ns
+#define TIME_PERIOD 1000000000 // 1sec in ns
+#define INITIAL_BLOCK_TIME 1 // 1sec
 struct map_entry {
-	__u64 last_counter_reset;
+	__u64 last_timestamp;
 	__u32 counter;
+	__u8 blocked;
+	__u32 punish_time; //second
 };
 
 struct {
@@ -19,7 +22,7 @@ struct {
 } rate_limit_map SEC(".maps");
 
 SEC("xdp")
-int rate_base_filter(struct xdp_md *ctx) {
+int count_punish_filter(struct xdp_md *ctx) {
 	void* start = (void *)(long) ctx->data;
 	void* end = (void *)(long) ctx->data_end;
 
@@ -52,28 +55,49 @@ int rate_base_filter(struct xdp_md *ctx) {
 	__u64 curr_time = bpf_ktime_get_ns();
 
 	if (entry) {
-		__u64 elapsed_time = curr_time - entry->last_counter_reset;
-		if (elapsed_time < TIME_PERIOD) {
-			entry->counter++;
-			if (entry->counter > THRESHOLD) {
-				// Threshold reached within the time window
+		if (entry->blocked){
+			// The IP address is blocked
+			__u64 block_time = entry->punish_time * 1000000000ULL;
+			if (curr_time - entry->last_timestamp < block_time){
 				return XDP_DROP;
+			} else {
+				//Unblock the ip 
+				entry->blocked = 0;
+				entry->last_timestamp = curr_time;
+				entry->counter = 1;
+				//Double the punish time for the next time
+				entry->punish_time = entry->punish_time*2;
 			}
 		} else {
-			//time window exceeded
-			entry->last_counter_reset = curr_time;
-			entry->counter = 1;
+			//entry is not blocked
+			__u64 elapsed_time = curr_time - entry->last_timestamp;
+			if (elapsed_time < TIME_PERIOD) {
+				entry->counter++;
+				if (entry->counter > THRESHOLD) {
+					// Threshold reached within the time window -> blocking the ip
+					entry->last_timestamp = curr_time;
+					entry->blocked = 1;
+					return XDP_DROP;
+				}
+			} else {
+				//time window exceeded
+				entry->last_timestamp = curr_time;
+				entry->counter = 1;
+			}
 		}
 	} else {
 		// Element does not exist
 		struct map_entry new_val;
 		new_val.counter = 1;
-		new_val.last_counter_reset = curr_time;
+		new_val.last_timestamp = curr_time;
+		new_val.blocked = 0;
+		new_val.punish_time = INITIAL_BLOCK_TIME; 
 		if(bpf_map_update_elem(&rate_limit_map, &source, &new_val, BPF_ANY) != 0){
 			return XDP_ABORTED; //Error occured
 		}
 	}
 	return XDP_PASS;
 }
+
 char _license[] SEC("license") = "GPL";
 
