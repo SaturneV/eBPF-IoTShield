@@ -1,89 +1,47 @@
 ### Testbench Setup Guide
-This guide provides instructions on how to set up a testbench for this project performance evaluation. Please follow 
-the step below and keep in mind that the setup may differ based on your specific environment and requirements.
+This guide provides instructions on how to set up a virtual testbench for this project performance evaluation. Please 
+follow the step below and keep in mind that the setup may differ based on your specific environment and requirements.
 
-#### Step 0: Get the distribution ISO
-Download the distribution you want to use for the testbench. In this guide, we will use Ubuntu 22.04 LTS that can
-be downloaded from [here](https://releases.ubuntu.com/22.04/).
+#### Step 0: Requirements
+Before starting the setup, ensure you have the following packages installed on your host machine:
+- qemu-system
+- gnome-terminal
 
-#### Step 1: Create the VMs
-First, create three VMs disk using `qemu-img`:
-```bash
-$ qemu-img create -f qcow2 h1.qcow2 10G
-$ qemu-img create -f qcow2 h2.qcow2 10G
-$ qemu-img create -f qcow2 h3.qcow2 10G
-```
-The last parameter specifies the disk size, which can be adjusted based on your needs.
+#### Step 1: Get the virtual disk images
+To allow a easy setup of the testbench, three pre-configured virtual disk images are provided:
+- **Host 1 VM**: [debian-13-nocloud-amd64-host1.qcow2]() 
+- **Host 2 VM**: [debian-13-nocloud-amd64-host2.qcow2]()
+- **Host 3 VM**: [debian-13-nocloud-amd64-host3.qcow2]()
 
-Then run the hosts installation using `qemu-system-x86_64` and for each one of them install the distribution:
-```bash
-$ qemu-system-x86_64 -m 2048 -enable-kvm -cpu host -cdrom ubuntu.iso -boot d -hda h1.qcow2 -net nic -net user
-$ qemu-system-x86_64 -m 2048 -enable-kvm -cpu host -cdrom ubuntu.iso -boot d -hda h2.qcow2 -net nic -net user
-$ qemu-system-x86_64 -m 2048 -enable-kvm -cpu host -cdrom ubuntu.iso -boot d -hda h3.qcow2 -net nic -net user
-```
-Mind the `-m` parameter that specifies the memory size allocated to each VM, which can be adjusted based on your
-needs and the -`net` parameters that allow network connectivity, which will be needed to install the required packages.
+**!Please note that the provided virtual disk images are not yet publicly available!**
 
-#### Step 2: Install required packages
-Once the OS installation is complete, install the required packages on each host:
-```bash
-$ sudo apt update
-$ sudo apt install hping3
-$ sudo apt install iperf3
-```
-*Please be aware that during performance evaluation, the hosts will not have internet access. Therefore, you need
-to install all necessary packages beforehand.*
+Theses images are based on a no-cloud ready to use Debian 13 available [here](https://www.debian.org/distrib/) and 
+have been pre-configured with all the necessary dependencies and software required for the testbench. They also include
+a yaml file that automatically configures the static IP addresses on boot (available in the ipconfigs/ directory).
 
-#### Step 3: Configure the network
-To enable communication between the VMs, we need to use the hub parameter of QEMU. Shut down all the VMs and then
-restart them with the following command:
-```bash
-$ qemu-system-x86_64 \
-  -m 2048 -enable-kvm -cpu host \
-  -hda h1.qcow2 \
-  -netdev hubport,id=port1,hubid=0 \
-  -device e1000,netdev=port1
-  
-$ qemu-system-x86_64 \
-  -m 2048 -enable-kvm -cpu host \
-  -hda h2.qcow2 \
-  -netdev hubport,id=port2,hubid=0 \
-  -device e1000,netdev=port2
-  
-$ qemu-system-x86_64 \
-  -m 2048 -enable-kvm -cpu host \
-  -hda h3.qcow2 \
-  -netdev hubport,id=port3,hubid=0 \
-  -device e1000,netdev=port3
-```
+Please be aware that the provided virtual disk images are built for amd64 architecture.
 
-#### Step 4: Assign IP addresses
-Once the VMs are running, assign IP addresses to each host to enable communications between them.
-```bash
-# On h1
-$ sudo ip addr add 10.0.0.1/24 dev ens3
-$ sudo ip link set ens3 up
+#### Step 2: Launch the testbench
+To launch the testbench, you can use the provided `testbench_init.sh` script. This script will create a network bridge
+and then open three gnome-terminal tabs, each running a QEMU instance for the respective hosts. Be sure to give execute
+permissions to the script and to put the virtual disk images in the same directory as the script before running it.
 
-# On h2
-sudo ip addr add 10.0.0.2/24 dev ens3
-sudo ip link set ens3 up
+#### Step 3: Access the VMs
+Once the testbench is launched, you can access each VM through the respective gnome-terminal tabs. The default login
+username is `root` and no password is required.
 
-# On h3
-sudo ip addr add 10.0.0.3/24 dev ens3
-sudo ip link set ens3 up
-```
-The above commands assign static IP addresses to each host. You can choose different IP addresses based on your
-network configuration.
+#### Step 4: Execute the performance evaluation
+The subnet of the testbench is `10.0.0.0/24` with the following static IP addresses assigned to each host:
+- **Host 1 VM**: `10.0.0.1/24`
+- **Host 2 VM**: `10.0.0.2/24`
+- **Host 3 VM**: `10.0.0.3/24`
 
-*Note that the interface name `ens3` may vary depending on the distribution and version you are using. You can check the
-interface name using the `ip addr` command.*
+To verify the connectivity between the hosts, you can use the `ping` command from one host to another.
 
-#### Step 5: Verify connectivity
-To ensure that the hosts can communicate with each other, use the `ping` command from one host to another, e.g. from
-h1 ping h2 and h3:
-```bash
-$ ping 10.0.0.2
-$ ping 10.0.0.3
-```
-If you receive replies, the network setup is successful and the hosts can communicate with each other. You can now
-proceed with the performance evaluation of the project using hping3 and iperf3.
+Each VM is pre-configured with the iperf3 and hping3 tools for performance evaluation. You can use these tools to
+generate traffic and measure the performance of different mitigator strategies. E.g., you can start an iperf3 server
+on host 1 and run iperf3 clients on host 2 and host 3 to generate traffic to attack host 1.
+
+#### Step 5: Clean up
+After completing your performance evaluation, you can shutdown the VMs by using the `poweroff` command within each VM
+and execute the `testbench_clean.sh` that will delete the bridge network created by the testbench setup script.
