@@ -24,7 +24,7 @@ struct ipv6_lpm_key {
 struct {
     __uint(type, BPF_MAP_TYPE_LPM_TRIE);
     __type(key, struct ipv4_lpm_key);
-    __type(value, __u8); //stores either ACTION_PASS or ACTION_DROP
+    __type(value, __u32); //stores either ACTION_PASS or ACTION_DROP
     __uint(max_entries, 1024);
     __uint(map_flags, BPF_F_NO_PREALLOC); 
 } map_v4 SEC(".maps");
@@ -32,7 +32,7 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_LPM_TRIE);
     __type(key, struct ipv6_lpm_key);
-    __type(value, __u8);
+    __type(value, __u32);
     __uint(max_entries, 1024);
     __uint(map_flags, BPF_F_NO_PREALLOC);
 } map_v6 SEC(".maps");
