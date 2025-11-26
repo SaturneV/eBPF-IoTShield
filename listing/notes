@@ -9,3 +9,114 @@ sudo bpftool map update name map_v4 \
 sudo bpftool map dump name map_v4
 
 
+//setting up test
+Testing XDP locally is tricky because XDP hooks onto the **ingress** (incoming) path. If you just ping your own IP on `eth0`, the traffic usually loops back internally via the loopback interface or the kernel stack without ever hitting the XDP hook on the physical driver.
+
+The best way to test this on a single machine is using **Network Namespaces** and a **veth pair**. Think of this as creating a "Virtual Machine" (the namespace) connected to your main machine via a "Virtual Ethernet Cable" (the veth pair).
+
+### **The Setup Strategy**
+
+1.  **Create a virtual cable:** One end (`veth-host`) plugs into your main OS. The other end (`veth-ns`) plugs into a namespace called `testns`.
+2.  **Attach XDP:** You load your program onto `veth-host`.
+3.  **Fire:** You run `ping` from inside `testns`. It travels over the wire and hits `veth-host` as "incoming traffic," triggering your XDP code.
+
+-----
+
+### **Step-by-Step Guide**
+
+#### **1. Create the Virtual Environment**
+
+Run these commands to set up the "virtual wire":
+
+```bash
+# 1. Create a namespace called 'testns'
+sudo ip netns add testns
+
+# 2. Create the virtual cable (veth-host <-> veth-ns)
+sudo ip link add veth-host type veth peer name veth-ns
+
+# 3. Plug veth-ns into the namespace
+sudo ip link set veth-ns netns testns
+
+# 4. Give IP addresses to both ends
+# Host side (where XDP will run)
+sudo ip addr add 192.168.50.1/24 dev veth-host
+sudo ip link set veth-host up
+
+# Namespace side (The "Attacker/User")
+sudo ip netns exec testns ip addr add 192.168.50.2/24 dev veth-ns
+sudo ip netns exec testns ip link set veth-ns up
+```
+
+#### **2. Verify Connectivity**
+
+Before loading XDP, make sure the connection works.
+
+```bash
+# Ping the host (192.168.50.1) from inside the namespace (192.168.50.2)
+sudo ip netns exec testns ping -c 2 192.168.50.1
+```
+
+*Result:* You should see successful pings.
+
+#### **3. Load Your XDP Program**
+
+Attach your firewall to the host side of the virtual cable.
+
+```bash
+# Run this from your code directory
+make load IFACE=veth-host
+```
+
+*Note: Since veth is a virtual driver, XDP will run in "Generic Mode" (skb mode). This is fine for testing logic.*
+
+#### **4. The Test: Block the Namespace IP**
+
+We will blacklist `192.168.50.2`.
+
+**Insert the rule:**
+
+```bash
+# Key: Prefix 32, IP 192.168.50.2 (C0 A8 32 02)
+# Value: 1 (DROP)
+sudo bpftool map update name map_v4 \
+    key 32 0 0 0  192 168 50 2 \
+    value 1 0 0 0
+```
+
+#### **5. Verify the Block**
+
+Now, try to ping again from the namespace.
+
+```bash
+sudo ip netns exec testns ping -c 4 192.168.50.1
+```
+
+  * **Expected Result:** **100% Packet Loss.** The ping should hang and fail.
+  * **Why?** The packet left the namespace, traveled the wire, hit `veth-host`, and XDP dropped it instantly.
+
+#### **6. The Ultimate Proof (Tcpdump)**
+
+How do you know XDP dropped it, and not just a network error? Use `tcpdump` on the host.
+
+Run this in a separate terminal window:
+
+```bash
+sudo tcpdump -i veth-host -n icmp
+```
+
+  * **Run the ping again.**
+  * **What you will see:** **Silence.**
+      * Standard `iptables` firewalls drop packets *after* `tcpdump` sees them.
+      * **XDP** drops packets *before* `tcpdump` sees them.
+      * If `tcpdump` shows nothing, but you are sending pings, **XDP is working.**
+
+-----
+
+### **Cleanup**
+
+When you are done, simply delete the namespace. This automatically destroys the veth interface and unloads the XDP program.
+
+```bash
+sudo ip netns del testns
+```

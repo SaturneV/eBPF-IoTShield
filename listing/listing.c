@@ -8,6 +8,7 @@
 #define ACTION_PASS 0
 #define ACTION_DROP 1
 
+//TODO: read from a .text file with python startup
 
 struct ipv4_lpm_key {
     __u32 prefixlen;
@@ -43,7 +44,7 @@ int xdp_listing(struct xdp_md *ctx) {
     void* data = (void*)(long)ctx->data;
 
     struct ethhdr* eth = data;
-    if (data + sizeof(struct ethhdr) > data_end)
+    if ((void*)(eth + 1) > data_end)
         return XDP_PASS;
 
     __u16 h_proto = eth->h_proto;
