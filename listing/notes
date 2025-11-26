@@ -1,0 +1,11 @@
+sudo ip link set dev wlp2s0 xdp obj listing.o sec xdp
+ip link show dev wlp2s0
+sudo ip link set dev wlp2s0 xdp off
+
+sudo bpftool map update name map_v4 \
+    key 32 0 0 0  192 168 1 5 \
+    value 1 0 0 0
+
+sudo bpftool map dump name map_v4
+
+
