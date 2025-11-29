@@ -10,7 +10,7 @@ MAP_IPV6_NAME = "map_v6"
 ACTION_PASS = 0
 ACTION_DROP = 1
 
-def is_element_in_config_file(filename, input_str, ip_type, action_str):
+def is_element_in_config_file(filename, input_str, ip_type_str, action_str):
     """
     Returns true if input_str is already in the config file
     """
@@ -19,7 +19,7 @@ def is_element_in_config_file(filename, input_str, ip_type, action_str):
 
     try:
         for category in ["allow", "block"]:
-            for entry in config_data[ip_type][action_str]:
+            for entry in config_data[ip_type_str][action_str]:
                 if (entry == input_str):
                     return True
                 
@@ -45,8 +45,8 @@ def add_element_to_config_file(filename, input_str, ip_type_str, action_str):
     with open(filename, "w") as f:
         json.dump(config_data, f, indent=4)
 
-def remove_element_from_config_file(filename, input_str, ip_type, category):
-    already_exists = is_element_in_config_file(filename, input_str, ip_type, category)
+def remove_element_from_config_file(filename, input_str, ip_type_str, action_str):
+    already_exists = is_element_in_config_file(filename, input_str, ip_type_str, action_str)
     if not already_exists:
         print(f"'{input_str}' isn't in the config file.")
         return
@@ -55,9 +55,9 @@ def remove_element_from_config_file(filename, input_str, ip_type, category):
         config_data = json.load(f)
 
     try:
-        config_data[ip_type][category].remove(input_str)
+        config_data[ip_type_str][action_str].remove(input_str)
     except Exception as e:
-        print(f"Error when trying to append '{input_str}' to '{category}: {e}")
+        print(f"Error when trying to append '{input_str}' to '{action_str}: {e}")
     
     with open(filename, "w") as f:
         json.dump(config_data, f, indent=4)
@@ -111,7 +111,7 @@ def add_element_to_map(action_str, input_str, init=False):
     else:
         print(f"Error: failed to add {input_str} to the eBPF map.")
 
-def remove_element_from_map(input_str):
+def remove_element_from_map(input_str, action_str):
     ip_type_str, prefix, ip_bytes = get_ip_config(input_str)
 
     if ip_type_str == "ipv4":
@@ -129,10 +129,9 @@ def remove_element_from_map(input_str):
     result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if result.returncode == 0:
         print(f"[{action.upper()}] {input_str} -> {map_name} (/{prefix})")
-        remove_element_from_config_file(CONFIG_FILE, input_str, )
-
+        remove_element_from_config_file(CONFIG_FILE, input_str, ip_type_str, action_str)
     else:
-        print(f"Error: failed to add {input_str} to the eBPF map.")
+        print(f"Error: failed to remove {input_str} from the eBPF map.")
 
 def load_rules_from_file(filename):
     if not os.path.exists(filename):
@@ -179,6 +178,6 @@ if __name__ == "__main__":
         if command == "add":
             add_element_to_map(action, ip_addr)
         elif command == "remove":
-            remove_element_from_map(ip_addr)
+            remove_element_from_map(ip_addr, action)
     else:
         print(f"Invalid command '{command}'. Use 'init', 'add', or 'remove'.")
