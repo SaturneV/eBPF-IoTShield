@@ -4,7 +4,7 @@ import subprocess
 import os
 import ipaddress
 
-CONFIG_FILE = "list_config.json"
+CONFIG_FILE = "config.json"
 MAP_IPV4_NAME = "map_v4"
 MAP_IPV6_NAME = "map_v6"
 ACTION_PASS = 0
@@ -154,9 +154,9 @@ def load_rules_from_file(filename):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage:")
-        print("  Initialize:  python3 list_controller.py init")
-        print("  Add Rule:    python3 list_controller.py add <block|allow> <IP>")
-        print("  Remove Rule: python3 list_controller.py remove <block|allow> <IP>")
+        print("  Initialize:  python3 controller.py init")
+        print("  Add Rule:    python3 controller.py add <block|allow> <IP>")
+        print("  Remove Rule: python3 controller.py remove <block|allow> <IP>")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     elif command in ["add", "remove"]:
         if len(sys.argv) != 4:
             print(f"Error: Missing arguments for '{command}'.")
-            print(f"Usage: python3 list_controller.py {command} <block|allow> <IP>")
+            print(f"Usage: python3 controller.py {command} <block|allow> <IP>")
             sys.exit(1)
 
         action = sys.argv[2]
