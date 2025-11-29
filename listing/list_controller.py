@@ -10,6 +10,59 @@ MAP_IPV6_NAME = "map_v6"
 ACTION_PASS = 0
 ACTION_DROP = 1
 
+def is_element_in_config_file(filename, input_str, ip_type, category):
+    """
+    Returns true if input_str is already in the config file
+    """
+    with open(filename, "r") as f:
+        config_data = json.load(f)
+
+    try:
+        for category in ["allow", "block"]:
+            for entry in config_data[ip_type][category]:
+                if (entry == input_str):
+                    return True
+                
+    except Exception as e:
+        print(f"Error when traversing the config file looking for {input_str}: {e}")
+
+    return False
+
+def add_element_to_config_file(filename, input_str, ip_type, category):
+    already_exists = is_element_in_config_file(filename, input_str, ip_type, category)
+    if already_exists:
+        print(f"'{input_str}' is already in the config file.")
+        return
+    
+    with open(filename, "r") as f:
+        config_data = json.load(f)
+
+    try:
+        config_data[ip_type][category].append(input_str)
+    except Exception as e:
+        print(f"Error when trying to append '{input_str}' to '{category}: {e}")
+    
+    with open(filename, "w") as f:
+        json.dump(config_data, f, indent=4)
+
+def remove_element_from_config_file(filename, input_str, ip_type, category):
+    already_exists = is_element_in_config_file(filename, input_str, ip_type, category)
+    if not already_exists:
+        print(f"'{input_str}' isn't in the config file.")
+        return
+    
+    with open(filename, "r") as f:
+        config_data = json.load(f)
+
+    try:
+        config_data[ip_type][category].remove(input_str)
+    except Exception as e:
+        print(f"Error when trying to append '{input_str}' to '{category}: {e}")
+    
+    with open(filename, "w") as f:
+        json.dump(config_data, f, indent=4)
+
+
 def get_ip_config(input_str):
     """
     Parses input and returns:
@@ -23,37 +76,72 @@ def get_ip_config(input_str):
         ip_bytes = [str(b) for b in net.network_address.packed]
 
         if net.version == 4:
-            return MAP_IPV4_NAME, prefix_len, ip_bytes
+            return "ipv4", prefix_len, ip_bytes
         elif net.version == 6:
-            return MAP_IPV6_NAME, prefix_len, ip_bytes
+            return "ipv6", prefix_len, ip_bytes
             
-    except ValueError as e:
+    except Exception as e:
         print(f"Error parsing IP '{input_str}': {e}")
         return None, None, None
 
-def update_map(action, input_str):
-    map_name, prefix, ip_bytes = get_ip_config(input_str)
+def add_element_to_map(action, input_str):
+    ip_type_str, prefix, ip_bytes = get_ip_config(input_str)
     
-    if map_name != MAP_IPV4_NAME and map_name != MAP_IPV6_NAME:
+    if ip_type_str == "ipv4":
+        map_name = MAP_IPV4_NAME
+    elif ip_type_str == "ipv6":
+        map_name = MAP_IPV6_NAME
+    else:
+        print(f"Invalid ip_type '{ip_type_str}'")
         return
 
     key = [str(prefix), "0", "0", "0"]
     key.extend(ip_bytes)
     
-    # Value: ACTION_PASS=0, ACTION_DROP=1
     action = ACTION_DROP if action == "block" else ACTION_PASS
     value = [str(action), "0", "0", "0"]
 
     cmd = [ "sudo", "bpftool", "map", "update", "name", map_name, "key"] + key + ["value"] + value
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    print(f"[{action.upper()}] {input_str} -> {map_name} (/{prefix})")
+    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if result.returncode == 0:
+        print(f"[{action.upper()}] {input_str} -> {map_name} (/{prefix})")
+        add_element_to_config_file(CONFIG_FILE, input_str, )
+
+    else:
+        print(f"Error: failed to add {input_str} to the eBPF map.")
+
+def remove_element_from_map(input_str):
+    ip_type_str, prefix, ip_bytes = get_ip_config(input_str)
+
+    if ip_type_str == "ipv4":
+        map_name = MAP_IPV4_NAME
+    elif ip_type_str == "ipv6":
+        map_name = MAP_IPV6_NAME
+    else:
+        print(f"Invalid ip_type '{ip_type_str}'")
+        return
+
+    key = [str(prefix), "0", "0", "0"]
+    key.extend(ip_bytes)
+
+    action = ACTION_DROP if action == "block" else ACTION_PASS
+    value = [str(action), "0", "0", "0"]
+
+    cmd = ["sudo", "bpftool", "map", "delete", "name", map_name, "key"] + key    
+    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if result.returncode == 0:
+        print(f"[{action.upper()}] {input_str} -> {map_name} (/{prefix})")
+        remove_element_from_config_file(CONFIG_FILE, input_str, )
+
+    else:
+        print(f"Error: failed to add {input_str} to the eBPF map.")
 
 def load_rules_from_file(filename):
     if not os.path.exists(filename):
         print(f"Error: {filename} not found.")
         return
 
-    print(f"--- Loading rule from {filename} ---")
+    print(f"Loading rule from {filename}")
     with open(filename, 'r') as f:
         data = json.load(f)
 
@@ -62,18 +150,37 @@ def load_rules_from_file(filename):
     for ip in data.get("ipv6", {}).get("block", []): update_map("block", ip)
     for ip in data.get("ipv6", {}).get("allow", []): update_map("allow", ip)
 
-    print("--- Init Complete ---")
+    print("Rules loaded into eBPF maps.")
+
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python3 list_controller.py [init | block <IP> | allow <IP>]")
+        print("Usage:")
+        print("  Initialize:  python3 list_controller.py init")
+        print("  Add Rule:    python3 list_controller.py add <block|allow> <IP>")
+        print("  Remove Rule: python3 list_controller.py remove <block|allow> <IP>")
         sys.exit(1)
 
-    mode = sys.argv[1]
+    command = sys.argv[1]
 
-    if mode == "init":
+    if command == "init":
         load_rules_from_file(CONFIG_FILE)
-    elif mode in ["block", "allow"] and len(sys.argv) == 3:
-        update_map(mode, sys.argv[2])
+    elif command in ["add", "remove"]:
+        if len(sys.argv) != 4:
+            print(f"Error: Missing arguments for '{command}'.")
+            print(f"Usage: python3 list_controller.py {command} <block|allow> <IP>")
+            sys.exit(1)
+
+        action = sys.argv[2]
+        ip_addr = sys.argv[3]
+        if action not in ["block", "allow"]:
+            print(f"Error: Invalid category '{action}'. Must be 'block' or 'allow'.")
+            sys.exit(1)
+
+        if command == "add":
+            add_element_to_map(action, ip_addr)
+        elif command == "remove":
+            remove_element_from_map(ip_addr)
     else:
-        print("Invalid arguments.")
+        print(f"Invalid command '{command}'. Use 'init', 'add', or 'remove'.")
