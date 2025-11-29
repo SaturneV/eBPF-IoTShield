@@ -4,13 +4,13 @@ import subprocess
 import os
 import ipaddress
 
-CONFIG_FILE = "list_config.json" #TODO: ALLOW A COMMAND TO 'HOT' RELOAD FROM list_config.json
+CONFIG_FILE = "list_config.json"
 MAP_IPV4_NAME = "map_v4"
 MAP_IPV6_NAME = "map_v6"
 ACTION_PASS = 0
 ACTION_DROP = 1
 
-def is_element_in_config_file(filename, input_str, ip_type, category):
+def is_element_in_config_file(filename, input_str, ip_type, action_str):
     """
     Returns true if input_str is already in the config file
     """
@@ -19,7 +19,7 @@ def is_element_in_config_file(filename, input_str, ip_type, category):
 
     try:
         for category in ["allow", "block"]:
-            for entry in config_data[ip_type][category]:
+            for entry in config_data[ip_type][action_str]:
                 if (entry == input_str):
                     return True
                 
@@ -28,8 +28,8 @@ def is_element_in_config_file(filename, input_str, ip_type, category):
 
     return False
 
-def add_element_to_config_file(filename, input_str, ip_type, category):
-    already_exists = is_element_in_config_file(filename, input_str, ip_type, category)
+def add_element_to_config_file(filename, input_str, ip_type_str, action_str):
+    already_exists = is_element_in_config_file(filename, input_str, ip_type_str, action_str)
     if already_exists:
         print(f"'{input_str}' is already in the config file.")
         return
@@ -38,9 +38,9 @@ def add_element_to_config_file(filename, input_str, ip_type, category):
         config_data = json.load(f)
 
     try:
-        config_data[ip_type][category].append(input_str)
+        config_data[ip_type_str][action_str].append(input_str)
     except Exception as e:
-        print(f"Error when trying to append '{input_str}' to '{category}: {e}")
+        print(f"Error when trying to append '{input_str}' to '{action_str}: {e}")
     
     with open(filename, "w") as f:
         json.dump(config_data, f, indent=4)
@@ -84,7 +84,7 @@ def get_ip_config(input_str):
         print(f"Error parsing IP '{input_str}': {e}")
         return None, None, None
 
-def add_element_to_map(action, input_str):
+def add_element_to_map(action_str, input_str, init=False):
     ip_type_str, prefix, ip_bytes = get_ip_config(input_str)
     
     if ip_type_str == "ipv4":
@@ -98,14 +98,15 @@ def add_element_to_map(action, input_str):
     key = [str(prefix), "0", "0", "0"]
     key.extend(ip_bytes)
     
-    action = ACTION_DROP if action == "block" else ACTION_PASS
+    action = ACTION_DROP if action_str == "block" else ACTION_PASS
     value = [str(action), "0", "0", "0"]
 
     cmd = [ "sudo", "bpftool", "map", "update", "name", map_name, "key"] + key + ["value"] + value
     result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if result.returncode == 0:
-        print(f"[{action.upper()}] {input_str} -> {map_name} (/{prefix})")
-        add_element_to_config_file(CONFIG_FILE, input_str, )
+        print(f"[{action_str}] {input_str} -> {map_name} (/{prefix})")
+        if not init:
+            add_element_to_config_file(CONFIG_FILE, input_str, ip_type_str, action_str)
 
     else:
         print(f"Error: failed to add {input_str} to the eBPF map.")
@@ -123,9 +124,6 @@ def remove_element_from_map(input_str):
 
     key = [str(prefix), "0", "0", "0"]
     key.extend(ip_bytes)
-
-    action = ACTION_DROP if action == "block" else ACTION_PASS
-    value = [str(action), "0", "0", "0"]
 
     cmd = ["sudo", "bpftool", "map", "delete", "name", map_name, "key"] + key    
     result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -145,10 +143,10 @@ def load_rules_from_file(filename):
     with open(filename, 'r') as f:
         data = json.load(f)
 
-    for ip in data.get("ipv4", {}).get("block", []): update_map("block", ip)
-    for ip in data.get("ipv4", {}).get("allow", []): update_map("allow", ip)
-    for ip in data.get("ipv6", {}).get("block", []): update_map("block", ip)
-    for ip in data.get("ipv6", {}).get("allow", []): update_map("allow", ip)
+    for ip in data.get("ipv4", {}).get("block", []): add_element_to_map("block", ip, init=True)
+    for ip in data.get("ipv4", {}).get("allow", []): add_element_to_map("allow", ip, init=True)
+    for ip in data.get("ipv6", {}).get("block", []): add_element_to_map("block", ip, init=True)
+    for ip in data.get("ipv6", {}).get("allow", []): add_element_to_map("allow", ip, init=True)
 
     print("Rules loaded into eBPF maps.")
 
