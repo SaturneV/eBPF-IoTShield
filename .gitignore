@@ -1,2 +1,3 @@
 *.o
 *.qcow2
+__pycache__
