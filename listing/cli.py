@@ -1,3 +1,23 @@
+"""
+eBPF-IoTShield Command Line Interface
+
+This module provides an interactive CLI for managing eBPF-based network filtering
+on IoT devices. It allows users to load/unload XDP filters, manage IP block/allow
+rules, and monitor the current state of the filter.
+
+The CLI supports both IPv4 and IPv6 address filtering with CIDR notation for network
+ranges. Rules are stored in JSON configuration files and synchronized with eBPF maps.
+
+Global State:
+    currState (dict): Tracks the current state of the loaded filter including:
+        - interface: Network interface name
+        - loaded: Whether filter is loaded
+        - initialized: Whether config file is set
+        - maps: Current rule configuration
+        - config_file: Path to active config file
+    chosen_interface (str): Currently selected network interface
+"""
+
 import controller as ctrl
 import subprocess
 import re
@@ -10,6 +30,15 @@ currState = {}
 chosen_interface = None
 
 def handle_sigint(signum, frame):
+    """
+    Signal handler for SIGINT (Ctrl-C).
+    
+    Performs cleanup and gracefully exits the CLI when user interrupts execution.
+    
+    Args:
+        signum: Signal number
+        frame: Current stack frame
+    """
     print("\n[!] Ctrl-C detected")
     # cleanup here
     execute_exit([])
@@ -17,6 +46,24 @@ def handle_sigint(signum, frame):
 
 
 def parse_maps_to_config(maps):
+    """
+    Parse eBPF map entries into a configuration dictionary.
+    
+    Converts raw eBPF map data containing IP addresses and actions into a structured
+    configuration format with separate IPv4/IPv6 block/allow lists.
+    
+    Args:
+        maps (dict): Dictionary of eBPF map IDs to their entries. Each entry contains:
+            - key: Dictionary with 'data' (IP bytes) and 'prefixlen' (CIDR prefix)
+            - value: Action (1 for block, other for allow)
+    
+    Returns:
+        dict: Configuration dictionary with structure:
+            {
+                "ipv4": {"block": [...], "allow": [...]},
+                "ipv6": {"block": [...], "allow": [...]}
+            }
+    """
     config = {
         "ipv4": {"block": [], "allow": []},
         "ipv6": {"block": [], "allow": []}
@@ -78,6 +125,18 @@ def parse_maps_to_config(maps):
 
 
 def run_terminal_command(cmd, msg, show=False, get_output=False):
+    """
+    Execute a shell command with error handling.
+    
+    Args:
+        cmd (str): Command string to execute
+        msg (str): Message to display before execution
+        show (bool): If True, print command output to console
+        get_output (bool): If True, return tuple with (success, output/error)
+    
+    Returns:
+        bool or tuple: Success status, or (success, output) if get_output=True
+    """
     cmd = cmd.strip().split()
     if len(cmd) == 0 :
         print("Trying to execute an empty terminal command")
@@ -108,6 +167,15 @@ def run_terminal_command(cmd, msg, show=False, get_output=False):
         return False
 
 def choose_interface():
+    """
+    Prompt user to select a network interface from available interfaces.
+    
+    Lists all available network interfaces from /sys/class/net and prompts
+    the user to choose one. Updates the global chosen_interface variable.
+    
+    Global Variables Modified:
+        chosen_interface: Set to the selected interface name
+    """
     global chosen_interface
     print("Choose an interface from the list below to work on:")
     success, output = run_terminal_command("ls /sys/class/net", "", get_output=True)
@@ -130,6 +198,21 @@ def choose_interface():
 
 
 def get_curr_state(first_time=False):
+    """
+    Retrieve and update the current state of the XDP filter on the chosen interface.
+    
+    Uses bpftool to check if an XDP program is loaded on the chosen interface
+    and updates the global currState dictionary with the current status.
+    
+    Args:
+        first_time (bool): If True, indicates this is the first state check
+    
+    Returns:
+        bool: True if state retrieved successfully, False otherwise
+    
+    Global Variables Modified:
+        currState: Updated with interface status, program ID, and initialization state
+    """
     global currState
     success, output =  run_terminal_command("sudo bpftool net list","Retrieving already loaded interface...", get_output=True)
     if not success: 
@@ -158,6 +241,15 @@ def get_curr_state(first_time=False):
     return True
 
 def get_current_maps():
+    """
+    Retrieve current eBPF map contents from the loaded filter.
+    
+    Queries bpftool to get all maps associated with the loaded XDP program
+    and dumps their contents. Results are cached in currState.
+    
+    Returns:
+        dict or None: Dictionary mapping map IDs to their entries, or None if error
+    """
     if not currState["loaded"]:
         print(f"Interface {chosen_interface} does not have a filter loaded. Please load it first.")
         return None
@@ -185,20 +277,41 @@ def get_current_maps():
     return maps
 
 def get_current_maps_from_file():
+    """
+    Load current map configuration from the active config file.
+    
+    Returns:
+        dict or None: Configuration data from file, or None if no filter loaded
+    """
     if not currState["loaded"]:
         print(f"Interface {chosen_interface} does not have a filter loaded. Please load it first.")
         return None
 
     with open(currState["config_file"], 'r') as f:
         data = json.load(f)
-    print("Current maps successfully retrieved from file.")
     return data
 
 def execute_exit(args: list[str]):
+    """
+    Exit the CLI application.
+    
+    Args:
+        args (list[str]): Command arguments (unused)
+    """
     print("Exiting the CLI. Goodbye!")
 
 
 def execute_load(args: list[str], reloading=False):
+    """
+    Load the XDP filter onto the chosen interface.
+    
+    Compiles the eBPF program using make and loads it onto the interface.
+    Prevents loading if a filter is already loaded.
+    
+    Args:
+        args (list[str]): Command arguments (expects only command name)
+        reloading (bool): If True, suppresses success message (used during reload)
+    """
     global chosen_interface
     name = "load"
     if len(args) != 1:
@@ -217,6 +330,15 @@ def execute_load(args: list[str], reloading=False):
             print("Filter successfully loaded")
 
 def execute_unload(args: list[str], reloading=False):
+    """
+    Unload the XDP filter from the chosen interface.
+    
+    Removes the loaded XDP program and clears the current state.
+    
+    Args:
+        args (list[str]): Command arguments (expects only command name)
+        reloading (bool): If True, suppresses success message (used during reload)
+    """
     global chosen_interface
     name = "unload"
     if len(args) != 1:
@@ -238,6 +360,14 @@ def execute_unload(args: list[str], reloading=False):
             print("Filter successfully unloaded")
 
 def execute_reload(args: list[str]):
+    """
+    Reload the XDP filter, clearing all existing rules.
+    
+    Unloads and reloads the filter, effectively resetting it to a clean state.
+    
+    Args:
+        args (list[str]): Command arguments (expects only command name)
+    """
     global chosen_interface
     name = "reload"
     if len(args) != 1:
@@ -251,6 +381,12 @@ def execute_reload(args: list[str]):
     print("Filter successfully reloaded")
     
 def execute_xdpstatus(args: list[str]):
+    """
+    Display XDP filter status on all network interfaces.
+    
+    Args:
+        args (list[str]): Command arguments (expects only command name)
+    """
     name = "xdpstatus"
     if len(args) != 1:
         print("Usage: " + commands[name]["Usage"])
@@ -259,6 +395,17 @@ def execute_xdpstatus(args: list[str]):
     run_terminal_command("sudo xdp-loader status", "XDP filter status on all interfaces :", show=True)
 
 def execute_switch(args: list[str]):
+    """
+    Switch to a different network interface.
+    
+    Prompts user to select a new interface and updates the current state.
+    
+    Args:
+        args (list[str]): Command arguments (expects only command name)
+    
+    Global Variables Modified:
+        chosen_interface: Updated to the newly selected interface
+    """
     global chosen_interface
     name = "switch"
     if len(args) != 1:
@@ -273,6 +420,15 @@ def execute_switch(args: list[str]):
 
 
 def execute_setrules(args: list[str]):
+    """
+    Set the configuration file and load rules into the filter.
+    
+    Loads IP block/allow rules from a JSON configuration file into the eBPF maps.
+    If rules already exist, prompts for confirmation before replacing them.
+    
+    Args:
+        args (list[str]): Command arguments [command_name, config_file_path]
+    """
     name = "setrules"
     if len(args) != 2:
         print("Usage: " + commands[name]["Usage"])
@@ -307,6 +463,15 @@ def execute_setrules(args: list[str]):
 
 
 def execute_getrules(args: list[str]):
+    """
+    Retrieve current rules from the filter and save to a configuration file.
+    
+    Dumps the currently active rules from eBPF maps and saves them to a JSON file
+    for future use or backup.
+    
+    Args:
+        args (list[str]): Command arguments [command_name, config_file_path]
+    """
     name = "getrules"
     if len(args) != 2:
         print("Usage: " + commands[name]["Usage"])
@@ -342,6 +507,15 @@ def execute_getrules(args: list[str]):
         print(f"Error saving rules to file: {e}")
     
 def execute_status(args: list[str]):
+    """
+    Display the current status of the filter and loaded rules.
+    
+    Shows interface, filter load status, initialization status, config file,
+    and all currently loaded IPv4/IPv6 block/allow rules.
+    
+    Args:
+        args (list[str]): Command arguments (expects only command name)
+    """
     name = "status"
     if len(args) != 1:
         print("Usage: " + commands[name]["Usage"])
@@ -377,6 +551,19 @@ def execute_status(args: list[str]):
 
 
 def execute_add_remove(args: list[str], is_last_operation=True):
+    """
+    Add or remove an IP address/network rule from the filter.
+    
+    Adds or removes a block/allow rule for a specific IP address or CIDR network.
+    Updates both the eBPF maps and the configuration file.
+    
+    Args:
+        args (list[str]): Command arguments [command_name, action, ip_address]
+            - command_name: "add" or "remove"
+            - action: "block" or "allow"
+            - ip_address: IP address or CIDR network (e.g., "192.168.1.0/24")
+        is_last_operation (bool): If True, refreshes state from config file
+    """
     if len(args) != 3:
         print("Usage: ", commands[args[0]]["Usage"])
         return
@@ -399,6 +586,15 @@ def execute_add_remove(args: list[str], is_last_operation=True):
         currState["maps"] = get_current_maps_from_file()
 
 def execute_addall(args: list[str]):
+    """
+    Add all rules from a configuration file to the current filter.
+    
+    Batch adds all IPv4/IPv6 block/allow rules from a JSON configuration file
+    to the currently loaded filter without replacing existing rules.
+    
+    Args:
+        args (list[str]): Command arguments [command_name, config_file_path]
+    """
     if len(args) != 2:
         print("Usage: ", commands[args[0]]["Usage"])
         return
@@ -432,6 +628,12 @@ def execute_addall(args: list[str]):
     print("All rules added.")
 
 def execute_help(args: list[str]):
+    """
+    Display help information for all available commands.
+    
+    Args:
+        args (list[str]): Command arguments (unused)
+    """
     print("Available commands:")
     for command_name, command_info in commands.items():
         print(f"\t{command_name}: {command_info['Usage']} - {command_info['Description']}")
@@ -508,6 +710,15 @@ commands =  {
 }
 
 def execute_command(args: list[str]):
+    """
+    Parse and execute a command entered by the user.
+    
+    Args:
+        args (list[str]): Command arguments where args[0] is the command name
+    
+    Returns:
+        bool: True if CLI should continue, False if user requested exit
+    """
     if len(args) == 0:
         print("No command entered.")
         return True
