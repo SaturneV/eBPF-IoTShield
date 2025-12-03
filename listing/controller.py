@@ -84,7 +84,7 @@ def get_ip_config(input_str):
         print(f"Error parsing IP '{input_str}': {e}")
         return None, None, None
 
-def add_element_to_map(action_str, input_str, init=False):
+def add_element_to_map(action_str, input_str, init=False, filename=CONFIG_FILE):
     ip_type_str, prefix, ip_bytes = get_ip_config(input_str)
     
     if ip_type_str == "ipv4":
@@ -106,12 +106,12 @@ def add_element_to_map(action_str, input_str, init=False):
     if result.returncode == 0:
         print(f"[{action_str}] {input_str} -> {map_name} (/{prefix})")
         if not init:
-            add_element_to_config_file(CONFIG_FILE, input_str, ip_type_str, action_str)
+            add_element_to_config_file(filename, input_str, ip_type_str, action_str)
 
     else:
         print(f"Error: failed to add {input_str} to the eBPF map.")
 
-def remove_element_from_map(input_str, action_str):
+def remove_element_from_map(input_str, action_str, filename=CONFIG_FILE):
     ip_type_str, prefix, ip_bytes = get_ip_config(input_str)
 
     if ip_type_str == "ipv4":
@@ -128,8 +128,8 @@ def remove_element_from_map(input_str, action_str):
     cmd = ["sudo", "bpftool", "map", "delete", "name", map_name, "key"] + key    
     result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if result.returncode == 0:
-        print(f"[{action.upper()}] {input_str} -> {map_name} (/{prefix})")
-        remove_element_from_config_file(CONFIG_FILE, input_str, ip_type_str, action_str)
+        print(f"[{action_str.upper()}] {input_str} -> {map_name} (/{prefix})")
+        remove_element_from_config_file(filename, input_str, ip_type_str, action_str)
     else:
         print(f"Error: failed to remove {input_str} from the eBPF map.")
 
