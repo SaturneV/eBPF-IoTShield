@@ -135,7 +135,7 @@ This command takes a configuration file as argument (following the format of `co
 It is useful for quickly initializing a filter without adding each rule manually.
 
 **Be careful when using this command.**  
-If a filter is already running, `setrules` will **reload the fileter erasing all existing rules** and replacing them with the rules provided in the configuration file.
+If a filter is already running, `setrules` will **reload the filter erasing all existing rules** and replacing them with the rules provided in the configuration file.
 
 ##### **`getrules`**  
 This command takes a configuration file as argument and retrieves the rules currently used by the running filter, then writes them to the file.  
