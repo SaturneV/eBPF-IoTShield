@@ -119,4 +119,7 @@ When you are done, simply delete the namespace. This automatically destroys the 
 
 ```bash
 sudo ip netns del testns
-```
+
+
+
+
