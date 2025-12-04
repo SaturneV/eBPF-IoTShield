@@ -104,7 +104,7 @@ def add_element_to_map(action_str, input_str, init=False, filename=CONFIG_FILE):
     cmd = [ "sudo", "bpftool", "map", "update", "name", map_name, "key"] + key + ["value"] + value
     result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if result.returncode == 0:
-        print(f"[{action_str}] {input_str} -> {map_name} (/{prefix})")
+        print(f"Added: [{action_str}] {input_str} -> {map_name} (/{prefix})")
         if not init:
             add_element_to_config_file(filename, input_str, ip_type_str, action_str)
 
@@ -128,7 +128,7 @@ def remove_element_from_map(input_str, action_str, filename=CONFIG_FILE):
     cmd = ["sudo", "bpftool", "map", "delete", "name", map_name, "key"] + key    
     result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if result.returncode == 0:
-        print(f"[{action_str.upper()}] {input_str} -> {map_name} (/{prefix})")
+        print(f"Removed: [{action_str}] {input_str} -> {map_name} (/{prefix})")
         remove_element_from_config_file(filename, input_str, ip_type_str, action_str)
     else:
         print(f"Error: failed to remove {input_str} from the eBPF map.")
