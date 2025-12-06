@@ -11,8 +11,6 @@
 #define RATE_LIMIT_THRESHOLD 10
 #define RATE_LIMIT_TIMEOUT 1000000000 // 1 sec in ns
 
-int rate_base_filter(struct xdp_md *ctx);
-
 struct ipv4_lpm_key {
     __u32 prefixlen;
     __u8 data[4];
@@ -61,46 +59,6 @@ struct {
 	__type(value, struct rate_limit_map_entry); // counter and last reset time
 } rate_limit_map_v6 SEC(".maps");
 
-SEC("xdp")
-int xdp_listing(struct xdp_md *ctx) {
-    void* data_end = (void*)(long)ctx->data_end;
-    void* data = (void*)(long)ctx->data;
-
-    struct ethhdr* eth = data;
-    if ((void*)(eth + 1) > data_end)
-        return XDP_PASS;
-
-    __u16 h_proto = eth->h_proto;
-    if (h_proto == bpf_htons(ETH_P_IP)) {
-        struct iphdr* iph = data + sizeof(struct ethhdr);
-        if ((void*)(iph + 1) > data_end)
-            return XDP_PASS;
-
-        struct ipv4_lpm_key key;
-        key.prefixlen = 32; //should be set to max key length for longest prefix match
-        __builtin_memcpy(key.data, &iph->saddr, 4);
-
-        __u32* action = bpf_map_lookup_elem(&map_v4, &key);
-        if (action)
-            return (*action == ACTION_DROP) ? XDP_DROP : XDP_PASS;
-
-    } else if (h_proto == bpf_htons(ETH_P_IPV6)) {
-        struct ipv6hdr* ip6h = data + sizeof(struct ethhdr);
-        if ((void*)(ip6h + 1) > data_end)
-            return XDP_PASS;
-
-        struct ipv6_lpm_key key;
-        key.prefixlen = 128; 
-        __builtin_memcpy(key.data, &ip6h->saddr, 16);
-
-        __u32* action = bpf_map_lookup_elem(&map_v6, &key);
-        if (action)
-            return (*action == ACTION_DROP) ? XDP_DROP : XDP_PASS;
-    }
-
-    return XDP_PASS; //not whitelist or blacklisted. TODO: don't pass them normally, let the remaining logic of the program handle it
-}
-
 static __always_inline int check_rate_limit(void *map, void *key) {
     struct rate_limit_map_entry *entry;
     __u64 curr_time = bpf_ktime_get_ns();
@@ -134,35 +92,49 @@ static __always_inline int check_rate_limit(void *map, void *key) {
 }
 
 SEC("xdp")
-int rate_base_filter(struct xdp_md *ctx) {
-    void *data_end = (void *)(long)ctx->data_end;
-    void *data = (void *)(long)ctx->data;
+int xdp_prog(struct xdp_md *ctx) {
+    void* data_end = (void*)(long)ctx->data_end;
+    void* data = (void*)(long)ctx->data;
 
-    struct ethhdr *eth = data;
-    if ((void *)(eth + 1) > data_end) {
+    struct ethhdr* eth = data;
+    if ((void*)(eth + 1) > data_end)
         return XDP_PASS;
+
+    __u16 h_proto = eth->h_proto;
+    if (h_proto == bpf_htons(ETH_P_IP)) {
+        struct iphdr* iph = data + sizeof(struct ethhdr);
+        if ((void*)(iph + 1) > data_end)
+            return XDP_PASS;
+
+        struct ipv4_lpm_key key;
+        key.prefixlen = 32; // Should be set to max key length for longest prefix match
+        __builtin_memcpy(key.data, &iph->saddr, 4);
+
+        __u32* action = bpf_map_lookup_elem(&map_v4, &key);
+        if (action)
+            return (*action == ACTION_DROP) ? XDP_DROP : XDP_PASS;
+
+        // If we're here means that the IPv4 is neither whitelisted or blacklisted
+        __u32 ip_key = iph->saddr;
+        return check_rate_limit(&rate_limit_map_v4, &ip_key);
+
+    } else if (h_proto == bpf_htons(ETH_P_IPV6)) {
+        struct ipv6hdr* ip6h = data + sizeof(struct ethhdr);
+        if ((void*)(ip6h + 1) > data_end)
+            return XDP_PASS;
+
+        struct ipv6_lpm_key key;
+        key.prefixlen = 128; 
+        __builtin_memcpy(key.data, &ip6h->saddr, 16);
+
+        __u32* action = bpf_map_lookup_elem(&map_v6, &key);
+        if (action)
+            return (*action == ACTION_DROP) ? XDP_DROP : XDP_PASS;
+        
+        // If we're here means that the IPv6 is neither whitelisted or blacklisted
+        return check_rate_limit(&rate_limit_map_v6, &ip6h->saddr);
     }
 
-    // Handling IPv4
-    if (eth->h_proto == bpf_htons(ETH_P_IP)) {
-        struct iphdr *ip = (void *)(eth + 1);
-        if ((void *)(ip + 1) > data_end) {
-            return XDP_PASS;
-        }
-
-        __u32 key = ip->saddr;
-        return check_rate_limit(&rate_limit_map_v4, &key);
-    } else if (eth->h_proto == bpf_htons(ETH_P_IPV6)) {  // Handling IPv6
-        struct ipv6hdr *ip6 = (void *)(eth + 1);
-        if ((void *)(ip6 + 1) > data_end) {
-            return XDP_PASS;
-        }
-
-        // IPv6 Source address is a struct in6_addr (16 bytes)
-        return check_rate_limit(&rate_limit_map_v6, &ip6->saddr);
-    }
-
-    // Pass anything that isn't IPv4 or IPv6 (ARP, etc.)
     return XDP_PASS;
 }
 
