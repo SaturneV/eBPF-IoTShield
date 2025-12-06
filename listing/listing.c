@@ -137,7 +137,6 @@ int xdp_prog(struct xdp_md *ctx) {
     }
 
     // Not IPv4 nor IPv6, just pass them.
-    // Note: this opens up to other types of attacks TODO: parse VLAN and check them, allow ARP explicitely and drop the rest
     return XDP_PASS;
 }
 
