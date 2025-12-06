@@ -119,3 +119,23 @@ When you are done, simply delete the namespace. This automatically destroys the 
 
 ```bash
 sudo ip netns del testns
+
+
+
+# 1. Create a namespace called 'testns'
+sudo ip netns add testns
+
+# 2. Create a virtual ethernet pair
+sudo ip link add veth-host type veth peer name veth-ns
+
+# 3. Plug veth-ns into the namespace
+sudo ip link set veth-ns netns testns
+
+# 4. Configure IP addresses
+# Host side (The "Server" or Gateway)
+sudo ip addr add 192.168.50.1/24 dev veth-host
+sudo ip link set veth-host up
+
+# Namespace side (The "Client" or Attacker)
+sudo ip netns exec testns ip addr add 192.168.50.2/24 dev veth-ns
+sudo ip netns exec testns ip link set veth-ns up
