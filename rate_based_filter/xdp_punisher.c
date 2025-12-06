@@ -71,9 +71,9 @@ int count_punish_filter(struct xdp_md *ctx) {
 		} else {
 			//entry is not blocked
 			__u64 elapsed_time = curr_time - entry->last_timestamp;
-			if (elapsed_time < RATE_LIMIT_TIMEOUT) {
+			if (elapsed_time < TIME_PERIOD) {
 				entry->counter++;
-				if (entry->counter > RATE_LITMIT_THRESHOLD) {
+				if (entry->counter > THRESHOLD) {
 					// Threshold reached within the time window -> blocking the ip
 					entry->last_timestamp = curr_time;
 					entry->blocked = 1;
