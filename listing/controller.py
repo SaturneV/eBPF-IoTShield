@@ -5,8 +5,8 @@ import os
 import ipaddress
 
 CONFIG_FILE = "config.json"
-MAP_IPV4_NAME = "map_v4"
-MAP_IPV6_NAME = "map_v6"
+MAP_IPV4_NAME = "listing_map_v4"
+MAP_IPV6_NAME = "listing_map_v6"
 ACTION_PASS = 0
 ACTION_DROP = 1
 
