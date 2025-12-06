@@ -5,11 +5,13 @@
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 
+// MODIFY HERE TO CHANGE RATE LIMIT PARAMETERS
+#define RATE_LIMIT_THRESHOLD 10
+#define RATE_LIMIT_TIMEOUT 1000000000 // 1 sec in ns
+
 #define ACTION_PASS 0
 #define ACTION_DROP 1
 
-#define RATE_LIMIT_THRESHOLD 10
-#define RATE_LIMIT_TIMEOUT 1000000000 // 1 sec in ns
 
 struct ipv4_lpm_key {
     __u32 prefixlen;
@@ -34,7 +36,7 @@ struct {
     __type(value, __u32); //stores either ACTION_PASS or ACTION_DROP
     __uint(max_entries, 1024);
     __uint(map_flags, BPF_F_NO_PREALLOC); 
-} map_v4 SEC(".maps");
+} listing_map_v4 SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_LPM_TRIE);
@@ -42,7 +44,7 @@ struct {
     __type(value, __u32);
     __uint(max_entries, 1024);
     __uint(map_flags, BPF_F_NO_PREALLOC);
-} map_v6 SEC(".maps");
+} listing_map_v6 SEC(".maps");
 
 //rate limiting maps
 struct {
@@ -110,13 +112,12 @@ int xdp_prog(struct xdp_md *ctx) {
         key.prefixlen = 32; // Should be set to max key length for longest prefix match
         __builtin_memcpy(key.data, &iph->saddr, 4);
 
-        __u32* action = bpf_map_lookup_elem(&map_v4, &key);
+        __u32* action = bpf_map_lookup_elem(&listing_map_v4, &key);
         if (action)
             return (*action == ACTION_DROP) ? XDP_DROP : XDP_PASS;
 
         // If we're here means that the IPv4 is neither whitelisted or blacklisted
-        __u32 ip_key = iph->saddr;
-        return check_rate_limit(&rate_limit_map_v4, &ip_key);
+        return check_rate_limit(&rate_limit_map_v4, &iph->saddr);
 
     } else if (h_proto == bpf_htons(ETH_P_IPV6)) {
         struct ipv6hdr* ip6h = data + sizeof(struct ethhdr);
@@ -127,7 +128,7 @@ int xdp_prog(struct xdp_md *ctx) {
         key.prefixlen = 128; 
         __builtin_memcpy(key.data, &ip6h->saddr, 16);
 
-        __u32* action = bpf_map_lookup_elem(&map_v6, &key);
+        __u32* action = bpf_map_lookup_elem(&listing_map_v6, &key);
         if (action)
             return (*action == ACTION_DROP) ? XDP_DROP : XDP_PASS;
         
@@ -135,6 +136,8 @@ int xdp_prog(struct xdp_md *ctx) {
         return check_rate_limit(&rate_limit_map_v6, &ip6h->saddr);
     }
 
+    // Not IPv4 nor IPv6, just pass them.
+    // Note: this opens up to other types of attacks TODO: parse VLAN and check them, allow ARP explicitely and drop the rest
     return XDP_PASS;
 }
 
