@@ -1,3 +1,5 @@
 *.o
 *.qcow2
 __pycache__
+ddos-deflate-master
+master.zip
