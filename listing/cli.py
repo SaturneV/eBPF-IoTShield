@@ -76,7 +76,7 @@ def parse_maps_to_config(maps):
         first_entry = entries[0]
         data_len = len(first_entry['key']['data'])
         
-        if data_len == 4 or (data_len > 4 and all(b == 0 for b in first_entry['key']['data'][4:])):
+        if data_len == 4:
             for entry in entries:
                 try:
                     prefixlen = entry['key']['prefixlen']
@@ -268,12 +268,13 @@ def get_current_maps():
     map_ids = match.group(1).split(",")
     maps = {}
     for map_id in map_ids:
-        success, output = run_terminal_command(f"sudo bpftool map dump id {map_id}", "", get_output=True)
+        success, output = run_terminal_command(f"sudo bpftool map dump id {map_id}", f"Trying to dump maps with id {map_id}", get_output=True)
         if not success:
             print(f"Error retrieving eBPF map information for map id {map_id}.")
             exit(1)
-        
-        maps[map_id] = json.loads(output.strip().replace('\n', ''))
+        if not "last_counter_reset" in output :
+            # Make sur the map is not the one use for counting the rate
+            maps[map_id] = json.loads(output.strip().replace('\n', ''))
     return maps
 
 def get_current_maps_from_file():
