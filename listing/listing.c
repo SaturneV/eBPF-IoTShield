@@ -69,9 +69,12 @@ static __always_inline int check_rate_limit(void *map, void *key) {
     if (entry) {
         __u64 elapsed_time = curr_time - entry->last_counter_reset;
         if (elapsed_time < RATE_LIMIT_TIMEOUT) {
-            entry->counter++;
+            // Note there is a slight race condition between the increment and check
+            // It could happen that another increment happens between the sync_fetch_and_add and the check but in the worst case
+            // this only means a packet that should have passed gets dropped (but can only happens when very close to the threshold), but since the limit isn't set in stone this is acceptable behavior
+            __sync_fetch_and_add(&entry->counter, 1);
             if (entry->counter > RATE_LIMIT_THRESHOLD)
-                return XDP_DROP;
+                 return XDP_DROP;
         } else {
             // Time window exceeded, reset logic
             entry->last_counter_reset = curr_time;
