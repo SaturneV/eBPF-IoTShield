@@ -1,0 +1,19 @@
+This file contains memory performance (average over 60) during the DDOS process following the filters (captured with htop) using a Raspberry Pi 3 Model B with a 1GB RAM.
+
+BLACKLIST - NO FILTER: 107M/906M
+
+BLACKLIST - EBPF: 106M/906M
+
+BLACKLIST - NFT: 108M/906M
+
+RATE LIMITER - NO FILTER: 110M/906M
+
+RATE LIMITER - EBPF: 114M/906M
+
+RATE LIMITER - NFT: 137M/906M
+
+HTTP SERVER - NO FILTER: 112M/906M
+
+HTTP SERVER - EBPF: 114M/906M
+
+HTTP SERVER - DDOS: 116M/906M
