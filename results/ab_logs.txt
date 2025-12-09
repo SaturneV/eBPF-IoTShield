@@ -1,0 +1,162 @@
+This file contains ApacheBench logs of the DDoS attack on the HTTP server hosted on a Raspberry Pi 2 Model B.
+
+NO FILTER:
+#####################################################################
+This is ApacheBench, Version 2.3 <$Revision: 1903618 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking 192.168.2.2 (be patient)
+Completed 5000 requests
+Completed 10000 requests
+Completed 15000 requests
+Completed 20000 requests
+Completed 25000 requests
+Completed 30000 requests
+Completed 35000 requests
+Completed 40000 requests
+Completed 45000 requests
+Completed 50000 requests
+Finished 50000 requests
+
+
+Server Software:        nginx
+Server Hostname:        192.168.2.2
+Server Port:            80
+
+Document Path:          /
+Document Length:        615 bytes
+
+Concurrency Level:      200
+Time taken for tests:   17.380 seconds
+Complete requests:      50000
+Failed requests:        0
+Total transferred:      42050000 bytes
+HTML transferred:       30750000 bytes
+Requests per second:    2876.83 [#/sec] (mean)
+Time per request:       69.521 [ms] (mean)
+Time per request:       0.348 [ms] (mean, across all concurrent requests)
+Transfer rate:          2362.71 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        1   22  72.6     10    2068
+Processing:     7   48  24.6     54     828
+Waiting:        2   47  24.6     54     828
+Total:          9   69  73.8     68    2129
+
+Percentage of the requests served within a certain time (ms)
+  50%     68
+  66%     75
+  75%     76
+  80%     77
+  90%     80
+  95%     82
+  98%    106
+  99%    125
+ 100%   2129 (longest request)
+#####################################################################
+
+EBPF FILTER (interrupted):
+#####################################################################
+This is ApacheBench, Version 2.3 <$Revision: 1903618 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking 192.168.2.2 (be patient)
+^C
+
+Server Software:        nginx
+Server Hostname:        192.168.2.2
+Server Port:            80
+
+Document Path:          /
+Document Length:        615 bytes
+
+Concurrency Level:      200
+Time taken for tests:   38.640 seconds
+Complete requests:      70
+Failed requests:        0
+Total transferred:      58870 bytes
+HTML transferred:       43050 bytes
+Requests per second:    1.81 [#/sec] (mean)
+Time per request:       110399.714 [ms] (mean)
+Time per request:       551.999 [ms] (mean, across all concurrent requests)
+Transfer rate:          1.49 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        1 1930 2323.2   1022    7169
+Processing:     1 2391 2406.9   3327    6594
+Waiting:        1 2390 2406.9   3327    6593
+Total:          2 4320 3887.6   4351   13759
+
+Percentage of the requests served within a certain time (ms)
+  50%   4351
+  66%   6395
+  75%   7615
+  80%   7615
+  90%  10496
+  95%  10496
+  98%  13759
+  99%  13759
+ 100%  13759 (longest request)
+#####################################################################
+
+DDOS-DEFLATE:
+#####################################################################
+This is ApacheBench, Version 2.3 <$Revision: 1903618 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking 192.168.2.2 (be patient)
+Completed 5000 requests
+Completed 10000 requests
+Completed 15000 requests
+Completed 20000 requests
+Completed 25000 requests
+Completed 30000 requests
+Completed 35000 requests
+Completed 40000 requests
+Completed 45000 requests
+Completed 50000 requests
+Finished 50000 requests
+
+
+Server Software:        nginx
+Server Hostname:        192.168.2.2
+Server Port:            80
+
+Document Path:          /
+Document Length:        615 bytes
+
+Concurrency Level:      200
+Time taken for tests:   17.569 seconds
+Complete requests:      50000
+Failed requests:        0
+Total transferred:      42050000 bytes
+HTML transferred:       30750000 bytes
+Requests per second:    2845.87 [#/sec] (mean)
+Time per request:       70.277 [ms] (mean)
+Time per request:       0.351 [ms] (mean, across all concurrent requests)
+Transfer rate:          2337.28 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        1   20  63.8     10    2023
+Processing:     7   49  55.8     54    4701
+Waiting:        2   49  55.8     54    4701
+Total:         11   69  82.3     67    4707
+
+Percentage of the requests served within a certain time (ms)
+  50%     67
+  66%     73
+  75%     75
+  80%     76
+  90%     79
+  95%     83
+  98%    107
+  99%    125
+ 100%   4707 (longest request)
+#####################################################################
+
