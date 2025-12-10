@@ -1,0 +1,30 @@
+===== Wed Dec 10 12:12:54 CET 2025 =====
+===== Interface eth0 statistics =====
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 xdpgeneric qdisc fq_codel state UP mode DEFAULT group default qlen 1000
+    link/ether b8:27:eb:67:50:57 brd ff:ff:ff:ff:ff:ff
+    prog/xdp id 78 
+    RX:  bytes packets errors dropped  missed   mcast           
+     126156808 2710366      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+       2324685   18937      0       0       0       0 
+===== Dump of BPF map id 43 =====
+[{
+        "key": 0,
+        "value": 19051
+    }
+]
+===== Wed Dec 10 12:13:14 CET 2025 =====
+===== Interface eth0 statistics =====
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 xdpgeneric qdisc fq_codel state UP mode DEFAULT group default qlen 1000
+    link/ether b8:27:eb:67:50:57 brd ff:ff:ff:ff:ff:ff
+    prog/xdp id 78 
+    RX:  bytes packets errors dropped  missed   mcast           
+     154061648 3316925      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+       2333835   19024      0       0       0       0 
+===== Dump of BPF map id 43 =====
+[{
+        "key": 0,
+        "value": 625377
+    }
+]
