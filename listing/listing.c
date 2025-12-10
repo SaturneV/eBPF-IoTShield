@@ -61,6 +61,40 @@ struct {
 	__type(value, struct rate_limit_map_entry); // counter and last reset time
 } rate_limit_map_v6 SEC(".maps");
 
+// Drop counter for blacklist drops
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, __u64);
+} drop_counters_blacklist SEC(".maps");
+
+// Drop counter for rate limiter drops
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, __u64);
+} drop_counters_ratelimit SEC(".maps");
+
+static __always_inline void blacklist_inc_drop_counter(void)
+{
+    __u32 k = 0;
+    __u64 *cnt = bpf_map_lookup_elem(&drop_counters_blacklist, &k);
+    if (cnt) {
+        __sync_fetch_and_add(cnt, 1);
+    }
+}
+
+static __always_inline void ratelimit_inc_drop_counter(void)
+{
+    __u32 k = 0;
+    __u64 *cnt = bpf_map_lookup_elem(&drop_counters_ratelimit, &k);
+    if (cnt) {
+        __sync_fetch_and_add(cnt, 1);
+    }
+}
+
 static __always_inline int check_rate_limit(void *map, void *key) {
     struct rate_limit_map_entry *entry;
     __u64 curr_time = bpf_ktime_get_ns();
@@ -74,7 +108,8 @@ static __always_inline int check_rate_limit(void *map, void *key) {
             // this only means a packet that should have passed gets dropped (but can only happens when very close to the threshold), but since the limit isn't set in stone this is acceptable behavior
             __sync_fetch_and_add(&entry->counter, 1);
             if (entry->counter > RATE_LIMIT_THRESHOLD)
-                 return XDP_DROP;
+                ratelimit_inc_drop_counter();
+                return XDP_DROP;
         } else {
             // Time window exceeded, reset logic
             entry->last_counter_reset = curr_time;
@@ -89,6 +124,7 @@ static __always_inline int check_rate_limit(void *map, void *key) {
         // If map is full we block everything, as in our case the important ips will already be whitelisted and will be accepted before coming to the rate limiter
         // If we were to pass, someone could simply fill up the map with bogus addresses and then bypass the rate limiting
         if (bpf_map_update_elem(map, key, &new_val, BPF_ANY) != 0)
+            ratelimit_inc_drop_counter();
             return XDP_DROP;
             
     }
@@ -116,8 +152,13 @@ int xdp_prog(struct xdp_md *ctx) {
         __builtin_memcpy(key.data, &iph->saddr, 4);
 
         __u32* action = bpf_map_lookup_elem(&listing_map_v4, &key);
-        if (action)
-            return (*action == ACTION_DROP) ? XDP_DROP : XDP_PASS;
+        if (action) {
+            if (*action == ACTION_DROP) {
+                blacklist_inc_drop_counter();
+                return XDP_DROP;
+            }
+            return XDP_PASS;
+        }
 
         // If we're here means that the IPv4 is neither whitelisted or blacklisted
         return check_rate_limit(&rate_limit_map_v4, &iph->saddr);
@@ -132,8 +173,13 @@ int xdp_prog(struct xdp_md *ctx) {
         __builtin_memcpy(key.data, &ip6h->saddr, 16);
 
         __u32* action = bpf_map_lookup_elem(&listing_map_v6, &key);
-        if (action)
-            return (*action == ACTION_DROP) ? XDP_DROP : XDP_PASS;
+        if (action) {
+            if (*action == ACTION_DROP) {
+                blacklist_inc_drop_counter();
+                return XDP_DROP;
+            }
+            return XDP_PASS;
+        }
         
         // If we're here means that the IPv6 is neither whitelisted or blacklisted
         return check_rate_limit(&rate_limit_map_v6, &ip6h->saddr);
