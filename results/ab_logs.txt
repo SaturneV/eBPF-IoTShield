@@ -74,33 +74,34 @@ Document Path:          /
 Document Length:        615 bytes
 
 Concurrency Level:      200
-Time taken for tests:   38.640 seconds
-Complete requests:      70
-Failed requests:        0
-Total transferred:      58870 bytes
-HTML transferred:       43050 bytes
-Requests per second:    1.81 [#/sec] (mean)
-Time per request:       110399.714 [ms] (mean)
-Time per request:       551.999 [ms] (mean, across all concurrent requests)
-Transfer rate:          1.49 [Kbytes/sec] received
+Time taken for tests:   109.209 seconds
+Complete requests:      3411
+Failed requests:        13
+   (Connect: 0, Receive: 0, Length: 13, Exceptions: 0)
+Total transferred:      2857718 bytes
+HTML transferred:       2089770 bytes
+Requests per second:    31.23 [#/sec] (mean)
+Time per request:       6403.315 [ms] (mean)
+Time per request:       32.017 [ms] (mean, across all concurrent requests)
+Transfer rate:          25.55 [Kbytes/sec] received
 
 Connection Times (ms)
               min  mean[+/-sd] median   max
-Connect:        1 1930 2323.2   1022    7169
-Processing:     1 2391 2406.9   3327    6594
-Waiting:        1 2390 2406.9   3327    6593
-Total:          2 4320 3887.6   4351   13759
+Connect:        1 1000 4119.2      4   35649
+Processing:     1 4175 9931.3      4   61021
+Waiting:        0 3942 9291.1      4   53708
+Total:          2 5174 11114.5   1018   64078
 
 Percentage of the requests served within a certain time (ms)
-  50%   4351
-  66%   6395
-  75%   7615
-  80%   7615
-  90%  10496
-  95%  10496
-  98%  13759
-  99%  13759
- 100%  13759 (longest request)
+  50%   1018
+  66%   1024
+  75%   2707
+  80%  13305
+  90%  14331
+  95%  29876
+  98%  53708
+  99%  54739
+ 100%  64078 (longest request)
 #####################################################################
 
 DDOS-DEFLATE:
